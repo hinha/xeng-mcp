@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Server as HttpServer } from "node:http";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -12,8 +13,10 @@ import { createRuntime } from "../runtime.js";
 export const HTTP_MCP_PATH = "/mcp";
 
 /** Drop abandoned HTTP MCP sessions (clients that never send DELETE/close). */
-const SESSION_IDLE_MS = 30 * 60 * 1000;
-const SESSION_SWEEP_MS = 60 * 1000;
+export const SESSION_IDLE_MS = 30 * 60 * 1000;
+export const SESSION_SWEEP_MS = 60 * 1000;
+/** Cap concurrent Streamable HTTP sessions to bound memory. */
+export const MAX_HTTP_SESSIONS = 100;
 
 type TransportEntry = {
   transport: StreamableHTTPServerTransport;
@@ -86,6 +89,14 @@ export function resolveHttpApiKey(req: import("express").Request, config: XengCo
   throw new Error("authorization header must be 'Bearer <api-key>'");
 }
 
+/** True when a new initialize may allocate another session slot. */
+export function canAcceptNewSession(
+  sessionCount: number,
+  maxSessions: number = MAX_HTTP_SESSIONS,
+): boolean {
+  return sessionCount < maxSessions;
+}
+
 /* c8 ignore start — HTTP listen loop / session lifecycle covered by manual/operator checks */
 async function disposeSession(
   transports: Record<string, TransportEntry>,
@@ -104,6 +115,22 @@ async function disposeSession(
   }
   try {
     await entry.server.close();
+  } catch {
+    /* already closed */
+  }
+}
+
+async function disposeUnregistered(
+  transport: StreamableHTTPServerTransport,
+  server: McpServer,
+): Promise<void> {
+  try {
+    await transport.close();
+  } catch {
+    /* already closed */
+  }
+  try {
+    await server.close();
   } catch {
     /* already closed */
   }
@@ -135,8 +162,11 @@ export async function startHttpServer(argv: string[] = process.argv.slice(2)): P
 
   const app = createMcpExpressApp(appHost);
   const transports: Record<string, TransportEntry> = {};
+  let httpServer: HttpServer | undefined;
+  let shuttingDown = false;
 
   const sweepTimer = setInterval(() => {
+    if (shuttingDown) return;
     const now = Date.now();
     for (const [sid, entry] of Object.entries(transports)) {
       if (now - entry.lastUsed > SESSION_IDLE_MS) {
@@ -148,10 +178,25 @@ export async function startHttpServer(argv: string[] = process.argv.slice(2)): P
   sweepTimer.unref();
 
   const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     clearInterval(sweepTimer);
-    for (const sid of Object.keys(transports)) {
-      void disposeSession(transports, sid);
-    }
+    log.info("HTTP shutdown: disposing sessions", { count: Object.keys(transports).length });
+    void (async () => {
+      const sids = Object.keys(transports);
+      await Promise.all(sids.map((sid) => disposeSession(transports, sid)));
+      if (httpServer) {
+        await new Promise<void>((resolve) => {
+          httpServer!.close(() => resolve());
+        });
+      }
+      process.exit(0);
+    })().catch((err) => {
+      log.error("HTTP shutdown failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      process.exit(1);
+    });
   };
   process.once("SIGINT", shutdown);
   process.once("SIGTERM", shutdown);
@@ -185,13 +230,17 @@ export async function startHttpServer(argv: string[] = process.argv.slice(2)): P
   app.get("/health", (_req, res) => {
     res.json({
       ok: true,
-      mcp_url: `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${port}${mcpPath}`,
-      auth: "Bearer <consumer-api-key> (or XENG_API_KEY)",
       sessions: Object.keys(transports).length,
+      max_sessions: MAX_HTTP_SESSIONS,
     });
   });
 
   const mcpHandler = async (req: import("express").Request, res: import("express").Response) => {
+    if (shuttingDown) {
+      res.status(503).send("shutting down");
+      return;
+    }
+
     let apiKey: string;
     try {
       apiKey = resolveHttpApiKey(req, config);
@@ -212,12 +261,26 @@ export async function startHttpServer(argv: string[] = process.argv.slice(2)): P
       }
 
       if (!sessionId && isInitializeRequest(req.body)) {
+        if (!canAcceptNewSession(Object.keys(transports).length)) {
+          res.status(503).json({
+            jsonrpc: "2.0",
+            error: {
+              code: -32000,
+              message: `Too many MCP sessions (max ${MAX_HTTP_SESSIONS})`,
+            },
+            id: null,
+          });
+          return;
+        }
+
         const runtime = createRuntime(config, apiKey);
         const server = buildMcpServer(runtime);
+        let registeredSid: string | undefined;
 
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid) => {
+            registeredSid = sid;
             transports[sid] = {
               transport,
               apiKey,
@@ -228,14 +291,23 @@ export async function startHttpServer(argv: string[] = process.argv.slice(2)): P
         });
 
         transport.onclose = () => {
-          const sid = transport.sessionId;
+          const sid = transport.sessionId ?? registeredSid;
           if (sid) {
             void disposeSession(transports, sid, { skipTransportClose: true });
           }
         };
 
-        await server.connect(transport);
-        await transport.handleRequest(req, res, req.body);
+        try {
+          await server.connect(transport);
+          await transport.handleRequest(req, res, req.body);
+        } catch (err) {
+          if (registeredSid) {
+            await disposeSession(transports, registeredSid);
+          } else {
+            await disposeUnregistered(transport, server);
+          }
+          throw err;
+        }
         return;
       }
 
@@ -265,15 +337,19 @@ export async function startHttpServer(argv: string[] = process.argv.slice(2)): P
   app.delete(mcpPath, mcpHandler);
 
   await new Promise<void>((resolve, reject) => {
-    app.listen(port, host, (err?: Error) => {
+    httpServer = app.listen(port, host, (err?: Error) => {
       if (err) reject(err);
       else resolve();
     });
   });
 
-  const mcpUrl = `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${port}${mcpPath}`;
-  log.info("xeng-mcp HTTP listening", { host, port, mcp_url: mcpUrl });
-  console.error(`[xeng-mcp] MCP URL: ${mcpUrl}`);
+  log.info("xeng-mcp HTTP listening", {
+    host,
+    port,
+    mcp_path: mcpPath,
+    max_sessions: MAX_HTTP_SESSIONS,
+  });
+  console.error(`[xeng-mcp] MCP path: ${mcpPath} on ${host}:${port}`);
   console.error("[xeng-mcp] Auth: Authorization: Bearer <consumer-api-key> (or XENG_API_KEY)");
 }
 /* c8 ignore stop */

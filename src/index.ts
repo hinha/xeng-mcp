@@ -36,6 +36,10 @@ async function startStdio(argv: string[]): Promise<void> {
 
   const server = buildMcpServer(runtime);
   const transport = new StdioServerTransport();
+  transport.onclose = () => {
+    log.info("stdio transport closed; exiting");
+    void server.close().finally(() => process.exit(0));
+  };
   await server.connect(transport);
   log.info("xeng-mcp listening on stdio", {
     baseUrl: config.baseUrl,

@@ -1,4 +1,5 @@
 import { authorizationHeader, validateApiKey } from "../config.js";
+import { MAX_UPSTREAM_RESPONSE_BYTES, readBodyText } from "./body.js";
 import { XengApiError } from "./errors.js";
 import type { APIResponse, HealthData, JsonObject, SearchParams } from "./types.js";
 
@@ -6,6 +7,8 @@ export type XengClientOptions = {
   baseUrl: string;
   timeoutMs: number;
   fetchImpl?: typeof fetch;
+  /** Override default {@link MAX_UPSTREAM_RESPONSE_BYTES}. */
+  maxResponseBytes?: number;
 };
 
 function parseErrorMessage(body: string): string {
@@ -31,11 +34,13 @@ function parseErrorMessage(body: string): string {
 export class XengClient {
   readonly baseUrl: string;
   readonly timeoutMs: number;
+  readonly maxResponseBytes: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: XengClientOptions) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.timeoutMs = opts.timeoutMs;
+    this.maxResponseBytes = opts.maxResponseBytes ?? MAX_UPSTREAM_RESPONSE_BYTES;
     this.fetchImpl = opts.fetchImpl ?? fetch;
   }
 
@@ -68,7 +73,7 @@ export class XengClient {
         headers,
         signal: controller.signal,
       });
-      const text = await res.text();
+      const text = await readBodyText(res, this.maxResponseBytes);
       if (res.status >= 400) {
         throw new XengApiError(res.status, parseErrorMessage(text) || res.statusText);
       }
@@ -112,7 +117,7 @@ export class XengClient {
         headers: { Accept: "application/json" },
         signal: controller.signal,
       });
-      const text = await res.text();
+      const text = await readBodyText(res, this.maxResponseBytes);
       if (res.status >= 400) {
         throw new XengApiError(res.status, parseErrorMessage(text) || res.statusText);
       }

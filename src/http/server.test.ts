@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { XengConfig } from "../config.js";
 import {
+  canAcceptNewSession,
   extractBearerToken,
   HTTP_MCP_PATH,
   isOriginAllowed,
+  MAX_HTTP_SESSIONS,
   parseAllowedOrigins,
   resolveHttpApiKey,
 } from "./server.js";
@@ -72,5 +74,13 @@ describe("http/server helpers", () => {
       () => resolveHttpApiKey({ headers: {} } as import("express").Request, cfg),
       /Bearer/,
     );
+  });
+
+  it("canAcceptNewSession enforces max", () => {
+    assert.equal(canAcceptNewSession(0, 2), true);
+    assert.equal(canAcceptNewSession(1, 2), true);
+    assert.equal(canAcceptNewSession(2, 2), false);
+    assert.equal(canAcceptNewSession(MAX_HTTP_SESSIONS - 1), true);
+    assert.equal(canAcceptNewSession(MAX_HTTP_SESSIONS), false);
   });
 });
