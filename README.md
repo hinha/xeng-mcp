@@ -1,6 +1,6 @@
 # xeng-mcp
 
-X-Engine MCP gateway — search X/Twitter tweets stored in [x-engine](https://github.com/hinha/x-engine) via the Model Context Protocol.
+MCP gateway for searching X/Twitter tweets stored in x-engine.
 
 ## Install
 
@@ -8,7 +8,7 @@ X-Engine MCP gateway — search X/Twitter tweets stored in [x-engine](https://gi
 npx -y xeng-mcp@latest --version
 ```
 
-### MCP host config
+Host config (credentials and upstream are host-owned — do not bake them into skills):
 
 ```json
 {
@@ -17,8 +17,8 @@ npx -y xeng-mcp@latest --version
       "command": "npx",
       "args": ["-y", "xeng-mcp@latest"],
       "env": {
-        "XENG_API_KEY": "sa_your_consumer_key",
-        "XENG_BASE_URL": "http://127.0.0.1:8080",
+        "XENG_API_KEY": "<consumer-api-key>",
+        "XENG_BASE_URL": "<x-engine-base-url>",
         "XENG_TIMEOUT": "60s"
       }
     }
@@ -26,54 +26,50 @@ npx -y xeng-mcp@latest --version
 }
 ```
 
-See also [`mcp.json.example`](./mcp.json.example).
+See [`mcp.json.example`](./mcp.json.example).
 
-## Auth
+## Environment
 
-Uses **x-engine consumer API keys** (auth-service). Sent as `Authorization: Bearer <key>`.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `XENG_API_KEY` | yes (stdio) | Consumer API key (`Authorization: Bearer …`) |
+| `XENG_BASE_URL` | no | Upstream x-engine base (host default if unset) |
+| `XENG_TIMEOUT` | no | Upstream timeout (`60s`, `5m`, or ms) |
+| `XENG_HOST` / `XENG_PORT` | no | HTTP serve bind |
+| `XENG_LOG_LEVEL` | no | `debug` \| `info` \| `warn` \| `error` |
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `XENG_API_KEY` | yes (stdio) | — | Consumer API key |
-| `XENG_BASE_URL` | no | `http://127.0.0.1:8080` | x-engine HTTP base |
-| `XENG_TIMEOUT` | no | `300000` ms | Upstream timeout (`60s`, `5m`, …) |
-| `XENG_HOST` / `XENG_PORT` | no | `127.0.0.1` / `8787` | HTTP serve bind |
-| `XENG_LOG_LEVEL` | no | `info` | `debug`\|`info`\|`warn`\|`error` |
-
-CLI flags: `--api-key`, `--xeng-base-url`, `--timeout`, `--stdio`, `serve` / `--http`.
+Flags: `--api-key`, `--xeng-base-url`, `--timeout`, `--stdio`, `serve` / `--http`.
 
 ## Tools
 
-| Tool | Upstream | Notes |
-|------|----------|--------|
-| `xeng_search` | `GET /api/v1/search` | FTS + filters (`lang`, `screen_name`, `hashtag`, `mention`, dates) |
-| `xeng_health` | `GET /health` | Liveness |
+| Tool | Role |
+|------|------|
+| `xeng_search` | Tweet search + filters |
+| `xeng_health` | Liveness |
 
-## Skill: `/x-social`
+## Skill
 
-Packaged at [`skills/x-social/SKILL.md`](./skills/x-social/SKILL.md). Copy into your agent skills directory (Cursor / Claude / Codex / …) with xeng-mcp enabled.
-
-Playbooks: topic **clustering**, **trends**, **campaign** monitoring, **market/sales** signal reading — all composed from `xeng_search` samples (not full-corpus DB analytics).
+[`skills/x-social/SKILL.md`](./skills/x-social/SKILL.md) — `/x-social` procedures for clustering, trends, campaigns, and market/sales reading. Install into the agent skills path with this MCP enabled.
 
 ## CLI
 
 ```bash
-xeng-mcp version          # or --version / -V
+xeng-mcp version
 xeng-mcp help
-xeng-mcp update            # registry check only
-xeng-mcp --stdio           # default MCP transport
-xeng-mcp serve             # Streamable HTTP at http://127.0.0.1:8787/mcp
+xeng-mcp update
+xeng-mcp --stdio
+xeng-mcp serve
 ```
 
-## Local development
+## Development
 
 ```bash
 make install && make check && make build
-cp .env.example .env   # set XENG_API_KEY
+cp .env.example .env
 make stdio
 ```
 
-Requires Node ≥ 20.
+Node ≥ 20.
 
 ## License
 

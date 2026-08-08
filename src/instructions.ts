@@ -1,24 +1,23 @@
 export function buildServerInstructions(): string {
-  return `X-Engine MCP exposes tweet search over the x-engine HTTP API.
+  return `xeng-mcp exposes X/Twitter tweet search through MCP tools (upstream is configured by the host).
 
-Auth: consumer API key only (XENG_API_KEY / Authorization Bearer). CMS JWT is not accepted.
+Auth: consumer API key via host env / Bearer. Do not ask the user for base URLs or invent HTTP clients.
 
-Tools:
-- xeng_search — GET /api/v1/search (FTS + filters: lang, screen_name, hashtag, mention, date range)
-- xeng_health — GET /health
+Tools (only these):
+- xeng_search — full-text search with filters: lang, screen_name, hashtag, mention, from_created_at, to_created_at, page/limit/offset, include_raw_json. q is required.
+- xeng_health — liveness probe.
 
-For clustering, trends, campaign monitoring, and market/sales reading, use the /x-social skill playbooks.
-Compose multiple xeng_search calls; do not invent tweets. Search pages are samples, not full-corpus analytics.
+For clustering, trends, campaigns, and market/sales reading, follow the /x-social skill. Compose multiple xeng_search calls; cite tweet_id/screen_name; never invent tweets. Pagination is a sample, not full-corpus analytics.
 `;
 }
 
 export const SERVER_INSTRUCTIONS = buildServerInstructions();
 
-export const WORKFLOW_DOC = `# X-Engine MCP workflow
+export const WORKFLOW_DOC = `# xeng-mcp workflow
 
-1. Ensure \`XENG_API_KEY\` is set (consumer API key from auth-service).
-2. Point \`XENG_BASE_URL\` at your x-engine instance (default http://127.0.0.1:8080).
-3. Call \`xeng_health\` to verify connectivity.
-4. Use \`xeng_search\` with \`q\` plus optional filters (\`hashtag\`, \`mention\`, \`screen_name\`, date bounds).
-5. For social intelligence workflows, follow the \`/x-social\` skill (clustering, trends, campaigns, market/sales).
+1. Use MCP tools only — do not invent REST URLs or shell clients.
+2. Optional: xeng_health when connectivity is unclear.
+3. xeng_search with q plus filters as needed (hashtag, mention, screen_name, date bounds, pagination).
+4. Social intelligence (clustering / trends / campaigns / market signals): follow /x-social.
+5. Never print API keys. Never fabricate tweets or totals beyond returned samples.
 `;

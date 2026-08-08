@@ -38,13 +38,13 @@ Commands:
 
 Environment (stdio):
   XENG_API_KEY             Required consumer API key
-  XENG_BASE_URL            Upstream API (default http://127.0.0.1:8080)
+  XENG_BASE_URL            Upstream x-engine base (host-configured)
   XENG_TIMEOUT             Timeout (e.g. 60s, 5m)
 
 Examples:
   npx -y xeng-mcp@latest --version
   xeng-mcp update
-  XENG_API_KEY=sa_… xeng-mcp --stdio
+  XENG_API_KEY=<key> xeng-mcp --stdio
   xeng-mcp serve
 `);
 }

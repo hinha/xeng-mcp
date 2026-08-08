@@ -5,106 +5,93 @@ allowed-tools: xeng_search, xeng_health
 metadata:
   mcpmarket-version: 1.0.0
 ---
-# X Social Intelligence
+# X Social
 
-Explore X/Twitter data through **xeng-mcp** tools (`xeng_search`, `xeng_health`) backed by the x-engine HTTP API.
+Use **xeng-mcp** tools only. The host already supplies credentials and upstream routing — do not invent REST clients, env exports, or endpoint URLs.
 
-## When to Use
+## When to use
 
-Invoke with `/x-social` when the user asks for:
+- Topic clustering (themes, narratives, communities)
+- Trend comparison across time windows
+- Campaign / hashtag monitoring
+- Market and sales signal reading (intent, complaints, competitors)
 
-- **Topic clustering** — group themes, narratives, or communities from search hits
-- **Trends** — how volume/language/sentiment of a topic shifts over time
-- **Campaign monitoring** — hashtag/mention performance, message consistency, counter-narratives
-- **Market / sales signals** — buying intent, product complaints, competitor comparisons, demand cues
+## Rules
 
-## Prerequisites
+1. Call `xeng_health` once if connectivity is uncertain; otherwise start with `xeng_search`.
+2. Prefer several focused `xeng_search` calls over one vague query.
+3. Cite evidence with `tweet_id` and `screen_name` from returned rows only.
+4. Treat pagination as a **sample**, not a full corpus or market share.
+5. Never fabricate tweets, authors, or engagement. Never print secrets.
+6. Do not shell out to HTTP, invent paths, or ask the user for a base URL — MCP tools are the API.
 
-```bash
-export XENG_API_KEY="sa_…"          # consumer API key (auth-service)
-export XENG_BASE_URL="http://127.0.0.1:8080"  # or your x-engine URL
-```
+## `xeng_search`
 
-Never print API keys. Never call CMS (`/v1/cms/*`) or invent REST bypasses — use MCP tools only.
+Required: `q`.
 
-## Step 0: Health
+Optional: `page`, `limit` (max 100), `offset`, `lang`, `screen_name`, `hashtag` (no `#`), `mention` (no `@`), `from_created_at`, `to_created_at`, `include_raw_json`.
 
 ```text
-xeng_health
+xeng_search:
+  q: "<topic or keyword>"
+  limit: 50
+  hashtag: "<tag without #>"
+  from_created_at: "<ISO lower bound>"
+  to_created_at: "<ISO upper bound>"
 ```
 
-Confirm upstream responds with status `ok` before analysis.
+Use response `metadata.pagination` when present for sample size; do not invent totals.
 
-## Core tool: xeng_search
+## Procedures
 
-Required: `q`. Optional filters:
+### Clustering
 
-| Param | Purpose |
-|-------|---------|
-| `page` / `limit` / `offset` | Pagination (limit max 100) |
-| `lang` | Language code |
-| `screen_name` | Author filter |
-| `hashtag` | Hashtag without `#` |
-| `mention` | Mention without `@` |
-| `from_created_at` / `to_created_at` | ISO date bounds |
-| `include_raw_json` | Include parsed raw payload when needed |
+1. Seed search on the topic (`limit` 50–100); add synonym / slang / competitor queries as needed.
+2. Group hits by theme (praise, complaint, meme, policy, spam, product, other).
+3. Per cluster: label, sample size, representative quotes, recurring hashtags/mentions.
+4. State that clusters are sample-based.
 
-Prefer several focused searches over one vague mega-query. Cite `tweet_id` and `screen_name` in findings.
+### Trends
 
-## Playbook 1: Clustering
+1. Fix `q` (and optional `hashtag` / `mention`).
+2. Repeat `xeng_search` across sequential `from_created_at` / `to_created_at` windows.
+3. Compare sample counts and engagement fields present on rows; note rising/falling themes and amplifiers only from data.
+4. Empty window → report empty; do not extrapolate.
 
-1. `xeng_search` with the seed topic (`limit` 50–100).
-2. Optional second/third queries for synonyms, competitors, and slang.
-3. Cluster returned texts by theme (product, policy, meme, complaint, praise, spam).
-4. For each cluster: label, size estimate (hit count in sample), representative tweets, top hashtags/mentions observed.
-5. State clearly that clusters are **sample-based** (paginated search), not a full DB partition.
-
-## Playbook 2: Trends
-
-1. Pick a fixed `q` (and optional `hashtag` / `mention`).
-2. Run `xeng_search` across sequential windows via `from_created_at` / `to_created_at` (e.g. daily or weekly).
-3. Compare hit totals from metadata pagination when present; note language mix and engagement fields (`retweet_count`, `favorite_count`, etc.) if available.
-4. Call out rising/falling themes and breakout authors — only from returned rows.
-5. If a window returns empty, say so; do not extrapolate.
-
-## Playbook 3: Campaign monitoring
+### Campaign monitoring
 
 1. Anchor on campaign `hashtag` and/or official `screen_name` / `mention`.
-2. Search the campaign tag; separately search brand name without the tag (organic vs tagged).
-3. Track message consistency, hijacks, spam, and counter-hashtags.
-4. Summarize reach proxies from engagement fields in the sample; list notable amplifiers.
-5. Flag risks (misinfo, brand-safety) with cited tweets.
+2. Separate tagged vs organic (brand terms without the campaign tag).
+3. Track message consistency, hijacks, spam, counter-tags; cite risks with tweet ids.
 
-## Playbook 4: Market / sales signals
+### Market / sales signals
 
-1. Search product/category keywords plus intent phrases (buy, price, recommend, alternative, refund, outage).
-2. Filter by `lang` and date window relevant to the sales period.
-3. Separate clusters: purchase intent, satisfaction, complaints, competitor switches, feature requests.
-4. Quantify only within the retrieved sample; recommend follow-up queries for gaps.
-5. Do not invent customers, prices, or conversion rates.
+1. Combine product/category terms with intent language (buy, price, recommend, alternative, refund, outage).
+2. Split hits into intent, satisfaction, complaints, competitor switches, feature requests.
+3. Quantify only within the retrieved sample; suggest follow-up queries for gaps — never invent conversion or revenue figures.
 
-## Response format
+## Output shape
 
 ```markdown
 ## Analysis: [Topic]
 
 ### Scope
-- Queries used, filters, date windows
-- Sample size caveat (pagination)
+Queries, filters, windows, sample caveat
 
 ### Findings
-- Clusters / trend deltas / campaign status / market signals
+Clusters / trend deltas / campaign status / market signals
 
 ### Evidence
-- tweet_id · @screen_name · short quote
+tweet_id · @screen_name · short quote
 
-### Gaps & next searches
-- Suggested follow-up xeng_search calls
+### Follow-ups
+Next xeng_search calls (args only — no URLs)
 ```
 
-## Hard limits
+## Anti-patterns
 
-- Search pages are **samples**, not full-corpus analytics or exact market share.
-- Never fabricate tweets, engagement, or authors.
-- Never log or echo `XENG_API_KEY`.
-- Tools allowed: **only** `xeng_search` and `xeng_health`.
+- Marketing fluff or “why this tool” digressions
+- Hard-coding or requesting host/base URLs
+- Bypassing MCP with curl/fetch/scripts
+- One mega-query instead of structured windows/filters
+- Presenting sample counts as population truth

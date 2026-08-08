@@ -58,14 +58,13 @@ export function registerMeta(server: McpServer): void {
           role: "user" as const,
           content: {
             type: "text" as const,
-            text: `Analyze X/Twitter social signals about: ${topic}
+            text: `Analyze social signals about: ${topic}
 
-1. Call xeng_health to confirm x-engine is up
-2. Run xeng_search with focused queries (topic keywords, hashtags, mentions)
-3. Vary from_created_at / to_created_at windows for trends
-4. Cluster themes from returned texts; cite tweet_id / screen_name
-5. Follow the /x-social skill playbooks for campaigns and market/sales reading
-6. Do not invent tweets; note pagination sample limits`,
+Use only xeng_search and xeng_health. Follow /x-social procedures.
+- Focused queries (keywords, hashtag, mention, screen_name)
+- Time windows via from_created_at / to_created_at for trends
+- Cite tweet_id and screen_name; treat pagination as a sample
+- Do not invent tweets, URLs, or HTTP bypasses`,
           },
         },
       ],
