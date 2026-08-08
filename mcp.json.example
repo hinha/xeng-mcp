@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "x-engine": {
+      "command": "npx",
+      "args": ["-y", "xeng-mcp@latest"],
+      "env": {
+        "XENG_API_KEY": "sa_xxx",
+        "XENG_BASE_URL": "http://127.0.0.1:8080",
+        "XENG_TIMEOUT": "60s"
+      }
+    }
+  }
+}
