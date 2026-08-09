@@ -1,6 +1,6 @@
 {
   "name": "xeng-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "X-Engine MCP Gateway — X/Twitter search via Model Context Protocol",
   "type": "module",
   "main": "dist/index.js",
