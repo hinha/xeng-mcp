@@ -17,6 +17,8 @@
 
 Read-only tools: `xeng_search`, `xeng_health`. No CMS, ingest, or account mutation.
 
+Authenticated upstream calls send `X-Client-Type: mcp` so x-engine can apply the MCP rate-limit profile.
+
 ## Upstream trust
 
 `XENG_BASE_URL` is host configuration. Point it only at x-engine instances you trust. Do not embed live base URLs in agent skills.

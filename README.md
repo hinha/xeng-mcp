@@ -47,6 +47,8 @@ Flags: `--api-key`, `--xeng-base-url`, `--timeout`, `--stdio`, `serve` / `--http
 | `xeng_search` | Tweet search + filters |
 | `xeng_health` | Liveness |
 
+Authenticated calls include `X-Client-Type: mcp` for x-engine rate-limit profiling.
+
 ## Skill
 
 [`skills/x-social/SKILL.md`](./skills/x-social/SKILL.md) — `/x-social` procedures for clustering, trends, campaigns, and market/sales reading. Install into the agent skills path with this MCP enabled.

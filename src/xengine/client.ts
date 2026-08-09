@@ -3,6 +3,10 @@ import { MAX_UPSTREAM_RESPONSE_BYTES, readBodyText } from "./body.js";
 import { XengApiError } from "./errors.js";
 import type { APIResponse, HealthData, JsonObject, SearchParams } from "./types.js";
 
+/** Header x-engine uses to select the MCP rate-limit profile. */
+export const XENG_CLIENT_TYPE_HEADER = "X-Client-Type";
+export const XENG_CLIENT_TYPE_MCP = "mcp";
+
 export type XengClientOptions = {
   baseUrl: string;
   timeoutMs: number;
@@ -63,6 +67,7 @@ export class XengClient {
     const headers: Record<string, string> = {
       Accept: "application/json",
       Authorization: authorizationHeader(apiKey),
+      [XENG_CLIENT_TYPE_HEADER]: XENG_CLIENT_TYPE_MCP,
     };
 
     const controller = new AbortController();

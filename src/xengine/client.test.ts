@@ -14,9 +14,12 @@ describe("XengClient", () => {
   it("search builds query string and Authorization", async () => {
     let seenUrl = "";
     let seenAuth = "";
+    let seenClientType = "";
     const fetchImpl = mockFetch(async (url, init) => {
       seenUrl = url;
-      seenAuth = String((init?.headers as Record<string, string>)?.Authorization ?? "");
+      const headers = init?.headers as Record<string, string>;
+      seenAuth = String(headers?.Authorization ?? "");
+      seenClientType = String(headers?.["X-Client-Type"] ?? "");
       return new Response(
         JSON.stringify({
           message: "OK",
@@ -48,6 +51,7 @@ describe("XengClient", () => {
     assert.equal(u.searchParams.get("hashtag"), "golang");
     assert.equal(u.searchParams.get("include_raw_json"), "true");
     assert.equal(seenAuth, "Bearer sa_key");
+    assert.equal(seenClientType, "mcp");
   });
 
   it("search passes through Bearer-prefixed keys", async () => {
